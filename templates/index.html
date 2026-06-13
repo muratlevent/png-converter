@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GURBAN DESIGN - Jewelry Design Sheet Converter</title>
+    <meta
+      name="description"
+      content="Kuyumculuk tasarım şablonlarındaki elmas ve metal ağırlık verilerini saniyeler içinde Excel ve CSV formatına dönüştürün."
+    />
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        --bg-color: #0b0f19;
+        --card-bg: rgba(17, 24, 39, 0.7);
+        --border-color: rgba(255, 255, 255, 0.08);
+        --accent-gold: #fbbf24;
+        --accent-gold-hover: #f59e0b;
+        --accent-cyan: #06b6d4;
+        --accent-cyan-hover: #0891b2;
+        --text-main: #f3f4f6;
+        --text-muted: #9ca3af;
+        --glass-blur: blur(16px);
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        min-height: 100vh;
+        line-height: 1.6;
+        background-image:
+          radial-gradient(
+            circle at 10% 20%,
+            rgba(6, 182, 212, 0.1) 0%,
+            transparent 40%
+          ),
+          radial-gradient(
+            circle at 90% 80%,
+            rgba(245, 158, 11, 0.08) 0%,
+            transparent 45%
+          );
+        background-attachment: fixed;
+      }
+
+      h1,
+      h2,
+      h3,
+      .font-outfit {
+        font-family: "Outfit", sans-serif;
+      }
+
+      /* Layout Container */
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      /* Header */
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 3rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .logo-section h1 {
+        font-size: 1.8rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #fff 30%, var(--accent-gold) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: 0.5px;
+      }
+
+      .logo-section p {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .badge {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--accent-gold);
+        padding: 0.4rem 0.8rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid rgba(251, 191, 36, 0.2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      /* Dashboard Grid */
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: 450px 1fr;
+        gap: 2rem;
+        align-items: start;
+      }
+
+      @media (max-width: 1024px) {
+        .dashboard-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Glassmorphism Card Style */
+      .card {
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--accent-cyan),
+          var(--accent-gold)
+        );
+        opacity: 0.8;
+      }
+
+      /* Drop Zone */
+      .upload-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .drop-zone {
+        border: 2px dashed rgba(255, 255, 255, 0.15);
+        border-radius: 15px;
+        padding: 3rem 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: var(--transition);
+        background: rgba(255, 255, 255, 0.02);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+      }
+
+      .drop-zone:hover,
+      .drop-zone.dragover {
+        border-color: var(--accent-gold);
+        background: rgba(251, 191, 36, 0.04);
+        box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+      }
+
+      .drop-zone svg {
+        width: 48px;
+        height: 48px;
+        fill: none;
+        stroke: var(--accent-gold);
+        stroke-width: 1.5;
+        transition: var(--transition);
+      }
+
+      .drop-zone:hover svg {
+        transform: translateY(-5px);
+        stroke: var(--accent-gold-hover);
+      }
+
+      .drop-zone p {
+        font-size: 0.95rem;
+        color: var(--text-main);
+        font-weight: 500;
+      }
+
+      .drop-zone span {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      #file-input {
+        display: none;
+      }
+
+      /* Image Preview Area */
+      .preview-box {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+        max-height: 250px;
+        display: none;
+      }
+
+      .preview-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #1e293b;
+      }
+
+      .remove-img-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(239, 68, 68, 0.9);
+        color: #fff;
+        border: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        transition: var(--transition);
+      }
+
+      .remove-img-btn:hover {
+        background: rgb(220, 38, 38);
+        transform: scale(1.1);
+      }
+
+      /* Primary Buttons */
+      .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.85rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: var(--transition);
+        border: none;
+        font-family: "Inter", sans-serif;
+      }
+
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--accent-gold) 0%,
+          var(--accent-gold-hover) 100%
+        );
+        color: #0b0f19;
+        box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4);
+      }
+
+      .btn-primary:disabled {
+        background: #374151;
+        color: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* Actions/Downloads Area */
+      .downloads-box {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        display: none;
+      }
+
+      .downloads-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        letter-spacing: 0.5px;
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+      }
+
+      .btn-download {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        text-align: left;
+        justify-content: flex-start;
+        padding-left: 1.25rem;
+        text-decoration: none;
+      }
+
+      .btn-download:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateX(4px);
+      }
+
+      .btn-download.excel {
+        border-color: rgba(251, 191, 36, 0.3);
+      }
+
+      .btn-download.excel:hover {
+        background: rgba(251, 191, 36, 0.08);
+        border-color: var(--accent-gold);
+        color: var(--accent-gold);
+      }
+
+      /* Status / Progress Indicator */
+      .status-box {
+        margin-top: 1rem;
+        text-align: center;
+        display: none;
+      }
+
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top: 3px solid var(--accent-gold);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0.5rem auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status-text {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+      }
+
+      /* Output Data Section */
+      .preview-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        height: 100%;
+      }
+
+      .preview-section h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .preview-section h2 span {
+        color: var(--accent-gold);
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+      }
+
+      .tab {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: var(--transition);
+        font-family: "Inter", sans-serif;
+      }
+
+      .tab:hover {
+        color: var(--text-main);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .tab.active {
+        color: var(--accent-gold);
+        background: rgba(251, 191, 36, 0.1);
+        border: 1px solid rgba(251, 191, 36, 0.2);
+      }
+
+      /* Tables */
+      .table-container {
+        flex-grow: 1;
+        overflow: auto;
+        max-height: 520px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.85rem;
+      }
+
+      .data-table th {
+        background-color: rgba(15, 23, 42, 0.8);
+        color: var(--text-main);
+        font-weight: 600;
+        padding: 0.9rem 1.2rem;
+        border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .data-table td {
+        padding: 0.75rem 1.2rem;
+        border-bottom: 1px solid var(--border-color);
+        color: #d1d5db;
+      }
+
+      .data-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+        color: #fff;
+      }
+
+      .data-table tr.total-row td {
+        background: rgba(251, 191, 36, 0.05);
+        font-weight: 700;
+        color: var(--accent-gold);
+        border-top: 2px solid rgba(251, 191, 36, 0.2);
+        border-bottom: 2px solid rgba(251, 191, 36, 0.2);
+      }
+
+      /* Empty State */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 6rem 2rem;
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .empty-state svg {
+        width: 64px;
+        height: 64px;
+        stroke: rgba(255, 255, 255, 0.1);
+        stroke-width: 1;
+        fill: none;
+      }
+
+      /* Alert notifications */
+      .alert {
+        padding: 1rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        border: 1px solid transparent;
+        display: none;
+      }
+
+      .alert-error {
+        background: rgba(239, 68, 68, 0.1);
+        color: #fca5a5;
+        border-color: rgba(239, 68, 68, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header>
+        <div class="logo-section">
+          <h1>GURBAN DESIGN</h1>
+          <p>Jewelry CAD Design Sheet Table Converter</p>
+        </div>
+        <div class="badge">Lokal Sunucu Aktif</div>
+      </header>
+
+      <!-- Main Content -->
+      <div class="dashboard-grid">
+        <!-- Left Section (Upload & controls) -->
+        <div class="card">
+          <div class="upload-section">
+            <h3 class="font-outfit" style="font-size: 1.25rem">
+              Tasarım Görseli Yükle
+            </h3>
+
+            <!-- Drop Zone -->
+            <div class="drop-zone" id="drop-zone">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M7 16a4 4 0 0 1-.88-7.903A5 5 0 1 1 15.9 6L16 6a5 5 0 0 1 1 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <div>
+                <p>Dosyayı sürükleyip bırakın</p>
+                <span>veya seçmek için tıklayın</span>
+              </div>
+              <span>PNG, JPG veya JPEG</span>
+            </div>
+
+            <input
+              type="file"
+              id="file-input"
+              accept="image/png, image/jpeg, image/jpg"
+            />
+
+            <!-- Preview Box -->
+            <div class="preview-box" id="preview-box">
+              <button class="remove-img-btn" id="remove-img-btn">
+                &times;
+              </button>
+              <img id="img-preview" src="" alt="Yüklenen Görsel" />
+            </div>
+
+            <!-- Convert Button -->
+            <button class="btn btn-primary" id="convert-btn" disabled>
+              <svg
+                style="
+                  width: 18px;
+                  height: 18px;
+                  fill: none;
+                  stroke: currentColor;
+                  stroke-width: 2;
+                "
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 1 1 21.21 8H17m-.5 1h.5V8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Dönüştürmeyi Başlat
+            </button>
+
+            <!-- Status Panel -->
+            <div class="status-box" id="status-box">
+              <div class="spinner"></div>
+              <div class="status-text" id="status-text">
+                Görsel işleniyor ve veriler taranıyor, lütfen bekleyin...
+              </div>
+            </div>
+
+            <!-- Alert error -->
+            <div class="alert alert-error" id="alert-error">
+              <svg
+                style="
+                  width: 18px;
+                  height: 18px;
+                  fill: none;
+                  stroke: currentColor;
+                  stroke-width: 2;
+                "
+                viewBox="0 0 24 24"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span id="error-msg">Dönüştürme işlemi başarısız oldu.</span>
+            </div>
+
+            <!-- Downloads Panel -->
+            <div class="downloads-box" id="downloads-box">
+              <div class="downloads-title">Çıktıları İndir</div>
+
+              <!-- Excel Download -->
+              <a href="#" class="btn btn-download excel" id="download-xlsx-btn">
+                <svg
+                  style="
+                    width: 18px;
+                    height: 18px;
+                    fill: none;
+                    stroke: currentColor;
+                    stroke-width: 2;
+                  "
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M8 7v12m0 0l-4-4m4 4l4-4m0-8h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8m-4-14a2 2 0 0 1 2-2h4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                Excel Dosyasını İndir (.xlsx)
+              </a>
+
+              <!-- Diamond CSV Download -->
+              <a href="#" class="btn btn-download" id="download-dia-csv-btn">
+                <svg
+                  style="
+                    width: 18px;
+                    height: 18px;
+                    fill: none;
+                    stroke: currentColor;
+                    stroke-width: 2;
+                  "
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                Diamond Details (.csv)
+              </a>
+
+              <!-- Metal CSV Download -->
+              <a href="#" class="btn btn-download" id="download-met-csv-btn">
+                <svg
+                  style="
+                    width: 18px;
+                    height: 18px;
+                    fill: none;
+                    stroke: currentColor;
+                    stroke-width: 2;
+                  "
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                Metal Details (.csv)
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Section (Table Previews) -->
+        <div class="card" style="min-height: 550px">
+          <div class="preview-section" id="preview-section">
+            <h2>Veri Önizleme <span>Tablosu</span></h2>
+
+            <!-- Tab Controls -->
+            <div class="tabs" id="table-tabs" style="display: none">
+              <button class="tab active" data-target="diamond-tab-pane">
+                Diamond Details
+              </button>
+              <button class="tab" data-target="metal-tab-pane">
+                Metal Details
+              </button>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <p>
+                Tablo önizlemesi için bir tasarım şablonu görseli yükleyin ve
+                dönüştürmeyi başlatın.
+              </p>
+            </div>
+
+            <!-- Diamond Pane -->
+            <div
+              class="table-container"
+              id="diamond-tab-pane"
+              style="display: none"
+            >
+              <table class="data-table" id="diamond-table">
+                <thead>
+                  <tr>
+                    <th>Diam Shape</th>
+                    <th>Sieve Size</th>
+                    <th>Gem Type</th>
+                    <th>Diamond Size</th>
+                    <th>QTY.</th>
+                    <th>Diam. Wt</th>
+                    <th>Total Wt</th>
+                    <th>Setting Type</th>
+                  </tr>
+                </thead>
+                <tbody id="diamond-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- Metal Pane -->
+            <div
+              class="table-container"
+              id="metal-tab-pane"
+              style="display: none"
+            >
+              <table class="data-table" id="metal-table">
+                <thead>
+                  <tr>
+                    <th>Metal Colore</th>
+                    <th>Wt</th>
+                  </tr>
+                </thead>
+                <tbody id="metal-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
+      const convertBtn = document.getElementById("convert-btn");
+      const previewBox = document.getElementById("preview-box");
+      const imgPreview = document.getElementById("img-preview");
+      const removeImgBtn = document.getElementById("remove-img-btn");
+      const statusBox = document.getElementById("status-box");
+      const alertError = document.getElementById("alert-error");
+      const errorMsg = document.getElementById("error-msg");
+      const downloadsBox = document.getElementById("downloads-box");
+      const tableTabs = document.getElementById("table-tabs");
+      const emptyState = document.getElementById("empty-state");
+
+      // Tabs pane
+      const diamondPane = document.getElementById("diamond-tab-pane");
+      const metalPane = document.getElementById("metal-tab-pane");
+
+      // Tab buttons
+      const tabButtons = document.querySelectorAll(".tab");
+
+      let selectedFile = null;
+
+      // Drag and Drop Events
+      dropZone.addEventListener("click", () => fileInput.click());
+
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("dragover");
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("dragover");
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("dragover");
+        if (e.dataTransfer.files.length > 0) {
+          handleFileSelect(e.dataTransfer.files[0]);
+        }
+      });
+
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+          handleFileSelect(e.target.files[0]);
+        }
+      });
+
+      function handleFileSelect(file) {
+        if (!file.type.match("image.*")) {
+          showError("Lütfen geçerli bir resim dosyası seçin (PNG, JPG, JPEG).");
+          return;
+        }
+        selectedFile = file;
+
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imgPreview.src = e.target.result;
+          previewBox.style.display = "block";
+          dropZone.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+
+        // Enable convert button
+        convertBtn.disabled = false;
+        alertError.style.display = "none";
+        downloadsBox.style.display = "none";
+      }
+
+      // Remove Image btn
+      removeImgBtn.addEventListener("click", () => {
+        selectedFile = null;
+        fileInput.value = "";
+        previewBox.style.display = "none";
+        dropZone.style.display = "flex";
+        convertBtn.disabled = true;
+        downloadsBox.style.display = "none";
+      });
+
+      // Convert Event
+      convertBtn.addEventListener("click", () => {
+        if (!selectedFile) return;
+
+        // UI states
+        convertBtn.disabled = true;
+        statusBox.style.display = "block";
+        alertError.style.display = "none";
+        downloadsBox.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+
+        fetch("/api/convert", {
+          method: "POST",
+          body: formData,
+        })
+          .then(async (response) => {
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(data.error || "Sunucu işlem hatası.");
+            }
+            return data;
+          })
+          .then((data) => {
+            statusBox.style.display = "none";
+            convertBtn.disabled = false;
+
+            // Set download links
+            document.getElementById("download-xlsx-btn").href =
+              `/api/download/${data.task_id}/xlsx`;
+            document.getElementById("download-dia-csv-btn").href =
+              `/api/download/${data.task_id}/diamond_csv`;
+            document.getElementById("download-met-csv-btn").href =
+              `/api/download/${data.task_id}/metal_csv`;
+
+            downloadsBox.style.display = "flex";
+
+            // Render Preview Tables
+            renderTables(data.diamond_data, data.metal_data);
+          })
+          .catch((err) => {
+            statusBox.style.display = "none";
+            convertBtn.disabled = false;
+            showError(err.message);
+          });
+      });
+
+      function showError(message) {
+        errorMsg.textContent = message;
+        alertError.style.display = "flex";
+      }
+
+      // Render Preview
+      function renderTables(diamondData, metalData) {
+        emptyState.style.display = "none";
+        tableTabs.style.display = "flex";
+
+        // Show first tab by default
+        showTab("diamond-tab-pane");
+
+        // 1. Render Diamond Table
+        const diamondTbody = document.getElementById("diamond-tbody");
+        diamondTbody.innerHTML = "";
+
+        diamondData.forEach((row) => {
+          const tr = document.createElement("tr");
+          if (row["Diam Shape"] === "TOTAL :") {
+            tr.classList.add("total-row");
+          }
+
+          tr.innerHTML = `
+                <td>${row["Diam Shape"] || ""}</td>
+                <td>${row["Sieve Size"] || ""}</td>
+                <td>${row["Gem Type"] || ""}</td>
+                <td>${row["Diamond Size"] || ""}</td>
+                <td>${row["QTY."] !== undefined ? row["QTY."] : ""}</td>
+                <td>${row["Diam. Wt"] !== undefined ? row["Diam. Wt"] : ""}</td>
+                <td>${row["Total Wt"] !== undefined ? row["Total Wt"] : ""}</td>
+                <td>${row["Setting Type"] || ""}</td>
+            `;
+          diamondTbody.appendChild(tr);
+        });
+
+        // 2. Render Metal Table
+        const metalTbody = document.getElementById("metal-tbody");
+        metalTbody.innerHTML = "";
+
+        metalData.forEach((row) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+                <td>${row["Metal Colore"] || ""}</td>
+                <td>${row["Wt"] !== undefined ? row["Wt"] : ""}</td>
+            `;
+          metalTbody.appendChild(tr);
+        });
+      }
+
+      // Tab buttons click listener
+      tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          tabButtons.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+
+          const targetPane = btn.getAttribute("data-target");
+          showTab(targetPane);
+        });
+      });
+
+      function showTab(paneId) {
+        diamondPane.style.display = "none";
+        metalPane.style.display = "none";
+
+        document.getElementById(paneId).style.display = "block";
+      }
+    </script>
+  </body>
+</html>

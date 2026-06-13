@@ -115,13 +115,17 @@ def clean_ocr_text(text, col_type):
                 
     return text
 
-def extract_tables(image_path):
+def extract_tables(image_path_or_img):
     """
     Detects table cells, segments them into rows, and extracts Diamond Details and Metal Details tables.
+    Accepts either an image file path (str) or a pre-loaded OpenCV image array (np.ndarray).
     """
-    img = cv2.imread(image_path)
-    if img is None:
-        raise FileNotFoundError(f"Could not load image at {image_path}")
+    if isinstance(image_path_or_img, str):
+        img = cv2.imread(image_path_or_img)
+        if img is None:
+            raise FileNotFoundError(f"Could not load image at {image_path_or_img}")
+    else:
+        img = image_path_or_img
         
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     

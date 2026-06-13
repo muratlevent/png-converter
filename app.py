@@ -130,6 +130,9 @@ def download(task_id, file_format):
     else:
         return jsonify({"error": "Invalid format"}), 400
 
+import os
+
 if __name__ == '__main__':
-    # Run server on port 5001
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Render and Railway pass the port dynamically via the PORT environment variable
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host='0.0.0.0', port=port, debug=True)

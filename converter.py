@@ -3,6 +3,7 @@ import numpy as np
 import pytesseract
 import pandas as pd
 import re
+import concurrent.futures
 
 def preprocess_cell(cell_img):
     """
@@ -115,10 +116,27 @@ def clean_ocr_text(text, col_type):
                 
     return text
 
+def ocr_worker(task):
+    """
+    Helper function run by threads to preprocess and run Tesseract OCR on a single cell crop.
+    task is a tuple: (task_id, crop_image, config_str, col_type)
+    """
+    task_id, crop_image, config, col_type = task
+    if crop_image is None or crop_image.size == 0:
+        return task_id, ""
+    try:
+        prep = preprocess_cell(crop_image)
+        txt = pytesseract.image_to_string(prep, config=config).strip()
+        cleaned = clean_ocr_text(txt, col_type)
+        return task_id, cleaned
+    except Exception as e:
+        print(f"Error during OCR of task {task_id}: {e}")
+        return task_id, ""
+
 def extract_tables(image_path_or_img):
     """
     Detects table cells, segments them into rows, and extracts Diamond Details and Metal Details tables.
-    Accepts either an image file path (str) or a pre-loaded OpenCV image array (np.ndarray).
+    Uses concurrent ThreadPoolExecutor to run Tesseract OCR in parallel for massive speed improvements.
     """
     if isinstance(image_path_or_img, str):
         img = cv2.imread(image_path_or_img)
@@ -182,15 +200,19 @@ def extract_tables(image_path_or_img):
     diamond_col_centers = [170, 265, 375, 474, 535, 592, 668, 766]
     metal_col_centers = [859, 947]
     
-    diamond_rows_data = []
-    metal_rows_data = []
-    
-    diamond_headers = ["Diam Shape", "Sieve Size", "Gem Type", "Diamond Size", "QTY.", "Diam. Wt", "Total Wt", "Setting Type", "Other"]
-    metal_headers = ["Metal Colore", "Wt"]
-    
     margin = 2
     
-    # --- PASS 1: Extract Diamond Details Table ---
+    # Instead of running OCR sequentially in the loops, we collect all crops
+    # and execute them in parallel.
+    # We index tasks by unique identifiers: e.g. ("diamond", r_idx, col_idx) or ("metal", r_idx, col_idx)
+    ocr_tasks = []
+    
+    # Structuring maps to help reconstruct rows later
+    diamond_row_mappings = {} # r_idx -> list of (col_idx, cell_bounds)
+    metal_row_mappings = {}   # r_idx -> list of (col_idx, cell_bounds)
+    diamond_total_rows = set()
+    
+    # --- PASS 1: Identify and collect Diamond Details Cells ---
     for r_idx, row in enumerate(rows):
         avg_y = sum(c[1] for c in row) / len(row)
         if avg_y < 480:
@@ -200,7 +222,7 @@ def extract_tables(image_path_or_img):
         if not left_cells:
             continue
             
-        # Find if sieve cell exists (cx ≈ 170)
+        # Check if sieve cell exists (cx ≈ 170)
         sieve_cell = None
         for cell in left_cells:
             cx = cell[0] + cell[2] // 2
@@ -214,14 +236,9 @@ def extract_tables(image_path_or_img):
             ax, ay, aw, ah = 19, sy, 99, sh
             
             crop_shape = img[ay+margin:ay+ah-margin, ax+margin:ax+aw-margin]
-            shape_txt = ""
-            if crop_shape.size > 0:
-                prep_shape = preprocess_cell(crop_shape)
-                shape_txt = pytesseract.image_to_string(prep_shape, config='--psm 6').strip()
-                shape_txt = clean_ocr_text(shape_txt, 'shape')
-                
-            row_data = ["" for _ in range(9)]
-            row_data[0] = shape_txt
+            ocr_tasks.append((("diamond", r_idx, 0), crop_shape, '--psm 6', 'shape'))
+            
+            diamond_row_mappings[r_idx] = []
             
             for cell in left_cells:
                 x, y, w, h = cell
@@ -232,35 +249,20 @@ def extract_tables(image_path_or_img):
                 if min_dist < 25:
                     col_idx = dists.index(min_dist) + 1
                     crop_cell = img[y+margin:y+h-margin, x+margin:x+w-margin]
-                    if crop_cell.size > 0:
-                        prep_cell = preprocess_cell(crop_cell)
-                        cell_txt = pytesseract.image_to_string(prep_cell, config='--psm 6').strip()
-                        
-                        if col_idx == 1:
-                            cell_txt = clean_ocr_text(cell_txt, 'sieve')
-                        elif col_idx == 2:
-                            cell_txt = clean_ocr_text(cell_txt, 'gem_type')
-                        elif col_idx == 3:
-                            cell_txt = clean_ocr_text(cell_txt, 'size')
-                        elif col_idx == 4:
-                            cell_txt = clean_ocr_text(cell_txt, 'qty')
-                        elif col_idx == 5:
-                            cell_txt = clean_ocr_text(cell_txt, 'diam_wt')
-                        elif col_idx == 6:
-                            cell_txt = clean_ocr_text(cell_txt, 'total_wt')
-                        elif col_idx == 7:
-                            cell_txt = clean_ocr_text(cell_txt, 'setting_type')
-                        else:
-                            cell_txt = cell_txt.replace('\n', ' ')
-                            
-                        row_data[col_idx] = cell_txt
-                        
-            # Skip Diamond Details header row
-            if row_data[1] == "Sieve Size":
-                continue
-                
-            diamond_rows_data.append(row_data)
-            
+                    
+                    # Column specific parser type
+                    col_type = 'text'
+                    if col_idx == 1: col_type = 'sieve'
+                    elif col_idx == 2: col_type = 'gem_type'
+                    elif col_idx == 3: col_type = 'size'
+                    elif col_idx == 4: col_type = 'qty'
+                    elif col_idx == 5: col_type = 'diam_wt'
+                    elif col_idx == 6: col_type = 'total_wt'
+                    elif col_idx == 7: col_type = 'setting_type'
+                    
+                    ocr_tasks.append((("diamond", r_idx, col_idx), crop_cell, '--psm 6', col_type))
+                    diamond_row_mappings[r_idx].append(col_idx)
+                    
         else:
             # Check if this is the TOTAL row of Diamond Details
             is_total_row = False
@@ -268,15 +270,16 @@ def extract_tables(image_path_or_img):
                 x, y, w, h = cell
                 crop_cell = img[y+margin:y+h-margin, x+margin:x+w-margin]
                 if crop_cell.size > 0:
+                    # Quick OCR check for Total keywords (not parallelized since we need decision immediately, but it is fast)
                     prep = preprocess_cell(crop_cell)
                     txt = pytesseract.image_to_string(prep, config='--psm 6').strip().upper()
-                    # Add JIAL, IAL, TAL, TOT to catch clipped TOTAL OCR
                     if any(term in txt for term in ["TOTAL", "TWITAL", "TWTAL", "TOAL", "JIAL", "IAL", "TAL", "TOT"]):
                         is_total_row = True
                         break
                         
             if is_total_row:
-                row_data = ["TOTAL :", "", "", "", 0, 0.0, 0.0, "", ""]
+                diamond_total_rows.add(r_idx)
+                diamond_row_mappings[r_idx] = []
                 for cell in left_cells:
                     x, y, w, h = cell
                     cx = x + w // 2
@@ -285,18 +288,13 @@ def extract_tables(image_path_or_img):
                     if min_dist < 25:
                         col_idx = dists.index(min_dist) + 1
                         crop_cell = img[y+margin:y+h-margin, x+margin:x+w-margin]
-                        if crop_cell.size > 0:
-                            prep = preprocess_cell(crop_cell)
-                            txt = pytesseract.image_to_string(prep, config='--psm 6').strip()
-                            if col_idx == 4:
-                                row_data[col_idx] = clean_ocr_text(txt, 'qty')
-                            elif col_idx == 5:
-                                row_data[col_idx] = clean_ocr_text(txt, 'diam_wt')
-                            elif col_idx == 6:
-                                row_data[col_idx] = clean_ocr_text(txt, 'total_wt')
-                diamond_rows_data.append(row_data)
-                
-    # --- PASS 2: Extract Metal Details Table ---
+                        
+                        col_type = 'qty' if col_idx == 4 else ('diam_wt' if col_idx == 5 else 'total_wt')
+                        if col_idx in [4, 5, 6]:
+                            ocr_tasks.append((("diamond_total", r_idx, col_idx), crop_cell, '--psm 6', col_type))
+                            diamond_row_mappings[r_idx].append(col_idx)
+
+    # --- PASS 2: Identify and collect Metal Details Cells ---
     for r_idx, row in enumerate(rows):
         avg_y = sum(c[1] for c in row) / len(row)
         if avg_y < 480:
@@ -306,9 +304,7 @@ def extract_tables(image_path_or_img):
         if not right_cells:
             continue
             
-        metal_row_data = ["" for _ in range(2)]
-        has_metal_data = False
-        
+        metal_row_mappings[r_idx] = []
         for cell in right_cells:
             x, y, w, h = cell
             cx = x + w // 2
@@ -317,28 +313,72 @@ def extract_tables(image_path_or_img):
             if min_dist < 25:
                 col_idx = dists.index(min_dist)
                 crop_cell = img[y+margin:y+h-margin, x+margin:x+w-margin]
-                if crop_cell.size > 0:
-                    prep_cell = preprocess_cell(crop_cell)
-                    cell_txt = pytesseract.image_to_string(prep_cell, config='--psm 6').strip()
-                    
-                    if col_idx == 0:
-                        cell_txt = cell_txt.replace('\n', ' ')
-                    else:
-                        cell_txt = clean_ocr_text(cell_txt, 'metal_wt')
-                        
-                    metal_row_data[col_idx] = cell_txt
-                    has_metal_data = True
-                    
-        if has_metal_data:
-            # Skip Metal table header
+                
+                col_type = 'text' if col_idx == 0 else 'metal_wt'
+                ocr_tasks.append((("metal", r_idx, col_idx), crop_cell, '--psm 6', col_type))
+                metal_row_mappings[r_idx].append(col_idx)
+
+    # --- BATCH EXECUTION: Run Tesseract concurrently ---
+    ocr_results = {}
+    print(f"Submitting {len(ocr_tasks)} OCR tasks to ThreadPoolExecutor...")
+    
+    # We use max_workers=12 to run 12 Tesseract subprocesses concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+        futures = {executor.submit(ocr_worker, task): task for task in ocr_tasks}
+        for future in concurrent.futures.as_completed(futures):
+            task_id, result = future.result()
+            ocr_results[task_id] = result
+            
+    print("Parallel OCR processing completed.")
+
+    # --- RECONSTRUCT ROWS AND DATAFRAMES ---
+    diamond_rows_data = []
+    metal_rows_data = []
+    
+    # 1. Rebuild Diamond Details Table
+    for r_idx in sorted(diamond_row_mappings.keys()):
+        if r_idx in diamond_total_rows:
+            # Rebuild TOTAL row
+            row_data = ["TOTAL :", "", "", "", 0, 0.0, 0.0, "", ""]
+            for col_idx in diamond_row_mappings[r_idx]:
+                val = ocr_results.get(("diamond_total", r_idx, col_idx), "")
+                row_data[col_idx] = val
+            diamond_rows_data.append(row_data)
+        else:
+            # Rebuild Standard Row
+            row_data = ["" for _ in range(9)]
+            row_data[0] = ocr_results.get(("diamond", r_idx, 0), "")
+            
+            for col_idx in diamond_row_mappings[r_idx]:
+                val = ocr_results.get(("diamond", r_idx, col_idx), "")
+                row_data[col_idx] = val
+                
+            # Skip header row
+            if row_data[1] == "Sieve Size":
+                continue
+            diamond_rows_data.append(row_data)
+
+    # 2. Rebuild Metal Details Table
+    for r_idx in sorted(metal_row_mappings.keys()):
+        metal_row_data = ["" for _ in range(2)]
+        has_data = False
+        for col_idx in metal_row_mappings[r_idx]:
+            val = ocr_results.get(("metal", r_idx, col_idx), "")
+            metal_row_data[col_idx] = val
+            has_data = True
+            
+        if has_data:
+            # Skip header row
             if metal_row_data[0] == "Metal Colore":
                 continue
-            # Skip if both are empty
             if not metal_row_data[0] and not metal_row_data[1]:
                 continue
             metal_rows_data.append(metal_row_data)
-            
+
     # Create DataFrames
+    diamond_headers = ["Diam Shape", "Sieve Size", "Gem Type", "Diamond Size", "QTY.", "Diam. Wt", "Total Wt", "Setting Type", "Other"]
+    metal_headers = ["Metal Colore", "Wt"]
+    
     df_diamond = pd.DataFrame(diamond_rows_data, columns=diamond_headers)
     df_metal = pd.DataFrame(metal_rows_data, columns=metal_headers)
     
@@ -347,28 +387,25 @@ def extract_tables(image_path_or_img):
     df_diamond = df_diamond[df_diamond["Diam Shape"].str.strip() != ""]
     df_metal = df_metal[df_metal["Metal Colore"].str.strip() != ""]
     
-    # 1. Clean up Diamond Details
-    # Convert numerical columns to correct types
+    # Clean up Diamond Details
     df_diamond["QTY."] = pd.to_numeric(df_diamond["QTY."], errors='coerce').fillna(0).astype(int)
     df_diamond["Diam. Wt"] = pd.to_numeric(df_diamond["Diam. Wt"], errors='coerce').fillna(0.0).astype(float)
     df_diamond["Total Wt"] = pd.to_numeric(df_diamond["Total Wt"], errors='coerce').fillna(0.0).astype(float)
     
-    # Apply physical constraints (e.g. if Total Wt is 0, QTY. is 0, Diam. Wt is 0.0)
+    # Enforce physical constraints
     for idx, row in df_diamond.iterrows():
         if row["Diam Shape"] != "TOTAL :":
-            # If Total Wt is 0.0, zero out Qty and Diam. Wt
             if row["Total Wt"] == 0.0:
                 df_diamond.at[idx, "QTY."] = 0
                 df_diamond.at[idx, "Diam. Wt"] = 0.0
                 df_diamond.at[idx, "Diamond Size"] = ""
                 
-    # Clean up Metal Details (remove noise, standardize types)
+    # Clean up Metal Details
     valid_metals = ["Sterling", "Kt", "Platinum", "Wax"]
     df_metal_filtered = []
     for idx, row in df_metal.iterrows():
         metal = row["Metal Colore"]
         if any(m in metal for m in valid_metals):
-            # Clean metal name
             if "Sterling" in metal:
                 metal = "Sterling 925"
             elif "Fine Gold" in metal or "24 Kt" in metal:
@@ -379,7 +416,6 @@ def extract_tables(image_path_or_img):
     df_metal["Wt"] = pd.to_numeric(df_metal["Wt"], errors='coerce').fillna(0.0).astype(float)
     
     # Sort data row outputs to ensure consistency
-    # Diamond table: keep total row at bottom
     data_rows = df_diamond[df_diamond["Diam Shape"] != "TOTAL :"].copy()
     total_row = df_diamond[df_diamond["Diam Shape"] == "TOTAL :"]
     df_diamond = pd.concat([data_rows, total_row], ignore_index=True)

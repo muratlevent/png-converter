@@ -19,5 +19,5 @@ COPY app.py converter.py ./
 COPY templates/ ./templates/
 
 # Run the web server using Gunicorn
-# Using JSON array form with sh -c to allow graceful SIGTERM signal handling while resolving $PORT
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app"]
+# Using JSON array form with sh -c to allow graceful SIGTERM signal handling while resolving $PORT and setting a 120s timeout
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --timeout 120 app:app"]
